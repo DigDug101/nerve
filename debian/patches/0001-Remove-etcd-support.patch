@@ -1,0 +1,128 @@
+From: Neil Williams <neil@reddit.com>
+Date: Sat, 14 May 2016 19:17:13 -0700
+Subject: Remove etcd support
+
+This reduces an unnecessary dependency.
+---
+ lib/nerve/reporter/etcd.rb           | 73 ------------------------------------
+ nerve.gemspec                        |  1 -
+ spec/lib/nerve/reporter_etcd_spec.rb | 18 ---------
+ 3 files changed, 92 deletions(-)
+ delete mode 100644 lib/nerve/reporter/etcd.rb
+ delete mode 100644 spec/lib/nerve/reporter_etcd_spec.rb
+
+diff --git a/lib/nerve/reporter/etcd.rb b/lib/nerve/reporter/etcd.rb
+deleted file mode 100644
+index 1633dda..0000000
+--- a/lib/nerve/reporter/etcd.rb
++++ /dev/null
+@@ -1,73 +0,0 @@
+-require 'nerve/reporter/base'
+-require 'etcd'
+-
+-class Nerve::Reporter
+-  class Etcd < Base
+-    def initialize(service)
+-      raise ArgumentError, "missing required argument etcd_host for new service watcher" unless service['etcd_host']
+-      @host = service['etcd_host']
+-      @port = service['etcd_port'] || 4003
+-      path = service['etcd_path'] || '/'
+-      @path = path.split('/').push(service['instance_id']).join('/')
+-      @data = parse_data(get_service_data(service))
+-      @key = nil
+-      @ttl = (service['check_interval'] || 0.5) * 5
+-      @ttl = @ttl.ceil
+-    end
+-
+-    def start()
+-      log.info "nerve: connecting to etcd at #{@host}:#{@port}"
+-      @etcd = ::Etcd.client(:host => @host, :port => @port)
+-      log.info "nerve: successfully created etcd connection to #{@host}:#{@port}"
+-    end
+-
+-    def stop()
+-       report_down
+-       @etcd = nil
+-    end
+-
+-    def report_up()
+-      etcd_save
+-    end
+-
+-    def report_down
+-      etcd_delete
+-    end
+-
+-    def ping?
+-      # we get a ping every check_interval.
+-      if @key
+-        # we have made a key: save it to prevent the TTL from expiring.
+-        etcd_save
+-      else
+-        # we haven't created a key, so just frob the etcd API to assure that
+-        # it's alive.
+-        @etcd.leader
+-      end
+-    end
+-
+-    private
+-
+-    def etcd_delete
+-      return unless @etcd and @key
+-      begin
+-        @etcd.delete(@key)
+-      rescue ::Etcd::NotFile
+-      rescue Errno::ECONNREFUSED
+-      end
+-    end
+-
+-    def etcd_create
+-      # we use create_in_order to create a unique key under our path,
+-      # permitting multiple registrations from the same instance_id.
+-      @key = @etcd.create_in_order(@path, :value => @data, :ttl => @ttl).key
+-      log.info "registered etcd key #{@key} with value #{@data}, TTL #{@ttl}"
+-    end
+-
+-    def etcd_save
+-      return etcd_create unless @key
+-      @etcd.set(@key, :value => @data, :ttl => @ttl)
+-    end
+-  end
+-end
+-
+diff --git a/nerve.gemspec b/nerve.gemspec
+index 6b9b045..eea827f 100644
+--- a/nerve.gemspec
++++ b/nerve.gemspec
+@@ -24,7 +24,6 @@ Gem::Specification.new do |gem|
+   gem.add_runtime_dependency "json"
+   gem.add_runtime_dependency "zk", "~> 1.9.2"
+   gem.add_runtime_dependency "bunny", "= 1.1.0"
+-  gem.add_runtime_dependency "etcd", "~> 0.2.3"
+ 
+   gem.add_development_dependency "rake"
+   gem.add_development_dependency "rspec", "~> 3.1.0"
+diff --git a/spec/lib/nerve/reporter_etcd_spec.rb b/spec/lib/nerve/reporter_etcd_spec.rb
+deleted file mode 100644
+index c01d3dd..0000000
+--- a/spec/lib/nerve/reporter_etcd_spec.rb
++++ /dev/null
+@@ -1,18 +0,0 @@
+-require 'spec_helper'
+-require 'nerve/reporter/etcd'
+-
+-describe Nerve::Reporter::Etcd do
+-  let(:subject) { {
+-      'etcd_host' => 'etcdhost1',
+-      'etcd_port' => 4001,
+-      'etcd_path' => '/path',
+-      'instance_id' => 'instance_id',
+-      'host' => 'host',
+-      'port' => 'port'
+-    }
+-  }
+-  it 'actually constructs an instance' do
+-    expect(Nerve::Reporter::Etcd.new(subject).is_a?(Nerve::Reporter::Etcd)).to eql(true)
+-  end
+-end
+-

@@ -1,0 +1,19 @@
+Source: nerve
+Section: net
+Priority: optional
+Maintainer: Neil Williams <neil@reddit.com>
+Build-Depends: debhelper (>= 7.0.50~), gem2deb (>= 0.6.1~)
+Standards-Version: 3.9.5
+Vcs-Git: git://github.com/reddit/nerve.git
+Vcs-Browser: https://github.com/reddit/nerve
+Homepage: https://github.com/airbnb/nerve
+XS-Ruby-Versions: all
+
+Package: nerve
+Architecture: all
+XB-Ruby-Versions: ${ruby:Versions}
+Depends: ${shlibs:Depends}, ${misc:Depends}, ruby, ruby-json, ruby-zk, ruby-bunny
+Description: Service registration daemon that performs health checks
+ Nerve is a utility for tracking the status of machines and services. It runs
+ locally on the boxes which make up a distributed system, and reports state
+ information to a distributed key-value store.
