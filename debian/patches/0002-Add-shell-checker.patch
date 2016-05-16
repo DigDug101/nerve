@@ -1,0 +1,60 @@
+From: Neil Williams <neil@reddit.com>
+Date: Mon, 16 May 2016 11:10:53 -0700
+Subject: Add shell checker
+
+This allows nerve to check a service's status by shelling out to an
+arbitrary command.
+---
+ lib/nerve/service_watcher.rb       |  1 +
+ lib/nerve/service_watcher/shell.rb | 30 ++++++++++++++++++++++++++++++
+ 2 files changed, 31 insertions(+)
+ create mode 100644 lib/nerve/service_watcher/shell.rb
+
+diff --git a/lib/nerve/service_watcher.rb b/lib/nerve/service_watcher.rb
+index 40283cd..93520f2 100644
+--- a/lib/nerve/service_watcher.rb
++++ b/lib/nerve/service_watcher.rb
+@@ -1,6 +1,7 @@
+ require 'nerve/service_watcher/tcp'
+ require 'nerve/service_watcher/http'
+ require 'nerve/service_watcher/rabbitmq'
++require 'nerve/service_watcher/shell'
+ 
+ module Nerve
+   class ServiceWatcher
+diff --git a/lib/nerve/service_watcher/shell.rb b/lib/nerve/service_watcher/shell.rb
+new file mode 100644
+index 0000000..b8621c2
+--- /dev/null
++++ b/lib/nerve/service_watcher/shell.rb
+@@ -0,0 +1,30 @@
++require 'nerve/service_watcher/base'
++
++
++module Nerve
++  module ServiceCheck
++    class ShellServiceCheck < BaseServiceCheck
++      require 'open3'
++
++      def initialize(opts={})
++        super
++
++        raise ArgumentError, "missing required argument 'command' in shell check" unless opts['command']
++
++        @command = opts['command']
++        @expected_exit_statuses = opts['expected_exit_statuses'] || [0]
++      end
++
++      def check
++        log.debug "nerve: running shell health check #{@name}"
++        _, _, status = Open3.capture3(@command)
++        log.debug "nerve: shell check exited with status #{status}"
++
++        return @expected_exit_statuses.include?(status)
++      end
++    end
++
++    CHECKS ||= {}
++    CHECKS['shell'] = ShellServiceCheck
++  end
++end
